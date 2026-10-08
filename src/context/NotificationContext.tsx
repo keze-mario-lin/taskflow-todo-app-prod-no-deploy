@@ -78,6 +78,15 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
   };
 
   const clearNotifications = () => {
+    // Track notifications_cleared event
+    if (typeof pendo !== 'undefined') {
+      const unreadCount = notifications.filter(n => !n.read).length;
+      pendo.track('notifications_cleared', {
+        clearedCount: notifications.length,
+        unreadCount,
+      });
+    }
+
     setNotifications([]);
   };
 
@@ -105,6 +114,17 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
               'reminder'
             );
             markReminderTriggered(task.id);
+
+            // Track reminder_triggered event
+            if (typeof pendo !== 'undefined') {
+              pendo.track('reminder_triggered', {
+                notificationType: 'reminder',
+                taskPriority: task.priority,
+                taskCategoryId: task.categoryId,
+                reminderSetting: task.reminder,
+                browserNotificationPermission: 'Notification' in window ? Notification.permission : 'unsupported',
+              });
+            }
           }
 
           // Check for overdue (only notify once per task per session)
@@ -119,6 +139,17 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
                 `Task "${task.title}" is overdue!`,
                 'overdue'
               );
+
+              // Track reminder_triggered event for overdue notifications
+              if (typeof pendo !== 'undefined') {
+                pendo.track('reminder_triggered', {
+                  notificationType: 'overdue',
+                  taskPriority: task.priority,
+                  taskCategoryId: task.categoryId,
+                  reminderSetting: task.reminder,
+                  browserNotificationPermission: 'Notification' in window ? Notification.permission : 'unsupported',
+                });
+              }
             }
           }
         }

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { useTasks } from '../context/TaskContext';
@@ -110,6 +110,50 @@ export const TasksPage: React.FC = () => {
     return result;
   }, [tasks, filter, sort]);
 
+  // Debounced tracking for task_search_executed
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isInitialRender = useRef(true);
+
+  useEffect(() => {
+    // Skip tracking on initial render
+    if (isInitialRender.current) {
+      isInitialRender.current = false;
+      return;
+    }
+
+    // Only track when the user has applied non-default filters or search
+    const hasActiveFilter =
+      filter.search !== '' ||
+      filter.status !== 'all' ||
+      filter.priority !== 'all' ||
+      filter.categoryId !== 'all';
+
+    if (!hasActiveFilter) return;
+
+    if (searchTimerRef.current) {
+      clearTimeout(searchTimerRef.current);
+    }
+
+    searchTimerRef.current = setTimeout(() => {
+      if (typeof pendo !== 'undefined') {
+        pendo.track('task_search_executed', {
+          searchQuery: filter.search ? 'true' : 'false',
+          statusFilter: filter.status,
+          priorityFilter: filter.priority,
+          categoryFilter: filter.categoryId,
+          sortBy: sort,
+          resultsCount: filteredTasks.length,
+        });
+      }
+    }, 500);
+
+    return () => {
+      if (searchTimerRef.current) {
+        clearTimeout(searchTimerRef.current);
+      }
+    };
+  }, [filter, sort, filteredTasks.length]);
+
   const handleToggleStatus = (taskId: string) => {
     toggleTaskStatus(taskId);
     const task = tasks.find(t => t.id === taskId);
@@ -120,6 +164,21 @@ export const TasksPage: React.FC = () => {
 
   const handleDeleteConfirm = () => {
     if (deleteTaskId) {
+      const taskToDelete = tasks.find(t => t.id === deleteTaskId);
+
+      // Track task_deleted event
+      if (taskToDelete && typeof pendo !== 'undefined') {
+        pendo.track('task_deleted', {
+          taskStatus: taskToDelete.status,
+          priority: taskToDelete.priority,
+          categoryId: taskToDelete.categoryId,
+          hasDueDate: !!taskToDelete.dueDate,
+          wasOverdue: isOverdue(taskToDelete.dueDate, taskToDelete.dueTime, taskToDelete.status),
+          subtaskCount: taskToDelete.subtasks.length,
+          source: 'tasks_page',
+        });
+      }
+
       deleteTask(deleteTaskId);
       showToast('Task deleted', 'success');
       setDeleteTaskId(null);

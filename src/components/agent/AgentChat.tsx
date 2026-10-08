@@ -118,10 +118,21 @@ export const AgentChat: React.FC = () => {
     setThreads(prev => prev.map(t => t.id === threadId ? updater(t) : t));
   }, []);
 
-  const processCommand = useCallback((text: string) => {
+  const processCommand = useCallback((text: string, quickAction = false) => {
     const parsed = parseCommand(text);
     const currentCtx = getThreadContext(activeThreadId);
     const { response, newCtx } = executeCommand(parsed, taskContext, currentCtx);
+
+    // Track agent_command_executed event
+    if (typeof pendo !== 'undefined') {
+      pendo.track('agent_command_executed', {
+        intent: parsed.intent,
+        commandLength: text.length,
+        threadId: activeThreadId,
+        isQuickAction: quickAction,
+        hasContextReference: !!currentCtx.lastMentionedTaskTitle || !!currentCtx.lastMentionedCategoryName,
+      });
+    }
 
     // Update the conversation context for this thread
     setThreadContext(activeThreadId, newCtx);
@@ -173,6 +184,14 @@ export const AgentChat: React.FC = () => {
   };
 
   const handleQuickAction = (command: string) => {
+    // Track agent_quick_action_used event
+    if (typeof pendo !== 'undefined') {
+      pendo.track('agent_quick_action_used', {
+        command,
+        threadId: activeThreadId,
+      });
+    }
+
     const userMsg: ChatMessage = {
       id: uuidv4(),
       role: 'user',
@@ -187,7 +206,7 @@ export const AgentChat: React.FC = () => {
     }));
 
     setIsTyping(true);
-    setTimeout(() => processCommand(command), 300 + Math.random() * 400);
+    setTimeout(() => processCommand(command, true), 300 + Math.random() * 400);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
