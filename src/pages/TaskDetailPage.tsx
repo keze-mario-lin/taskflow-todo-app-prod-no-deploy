@@ -57,6 +57,18 @@ export const TaskDetailPage: React.FC = () => {
   };
 
   const handleToggleStatus = () => {
+    // Track task_reopened event when a completed task is being reopened
+    if (task.status === 'completed' && typeof pendo !== 'undefined') {
+      const completedSubtaskCount = task.subtasks.filter(s => s.completed).length;
+      pendo.track('task_reopened', {
+        priority: task.priority,
+        categoryId: task.categoryId,
+        hasDueDate: !!task.dueDate,
+        subtaskCount: task.subtasks.length,
+        completedSubtaskCount,
+      });
+    }
+
     toggleTaskStatus(task.id);
     showToast(
       task.status === 'pending' ? 'Task completed!' : 'Task marked as pending',
@@ -65,6 +77,25 @@ export const TaskDetailPage: React.FC = () => {
   };
 
   const handleToggleSubtask = (subtaskId: string) => {
+    const subtask = task.subtasks.find(s => s.id === subtaskId);
+    const completedBefore = task.subtasks.filter(s => s.completed).length;
+    const totalSubtasks = task.subtasks.length;
+
+    // Track subtask_toggled event
+    if (subtask && typeof pendo !== 'undefined') {
+      // The subtask's new state is the opposite of its current state
+      const subtaskNewState = !subtask.completed;
+      const completedAfter = subtaskNewState ? completedBefore + 1 : completedBefore - 1;
+      pendo.track('subtask_toggled', {
+        taskPriority: task.priority,
+        taskCategoryId: task.categoryId,
+        subtaskNewState,
+        totalSubtasks,
+        completedSubtasks: completedAfter,
+        progressPercent: totalSubtasks > 0 ? Math.round((completedAfter / totalSubtasks) * 100) : 0,
+      });
+    }
+
     toggleSubtask(task.id, subtaskId);
   };
 
